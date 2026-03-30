@@ -7,6 +7,7 @@
 #SBATCH --mem=16G
 #SBATCH --time=04:00:00
 #SBATCH --output=download_%j.log
+#SBATCH --chdir=/mmfs1/gscratch/stf/yarasho/llm-for-tpi
 
 # =============================================================================
 # Download Qwen3 model weights to gscratch
@@ -18,7 +19,7 @@
 set -euo pipefail
 
 # -- Configuration --
-GROUP_DIR="/gscratch/stf"       # <-- Replace
+GROUP_DIR="/mmfs1/gscratch/stf/yarasho"
 CONTAINER="${GROUP_DIR}/containers/qwen3.sif"
 MODEL_CACHE="${GROUP_DIR}/models"
 MODEL_ID="${1:-Qwen/Qwen3-14B}"        # Pass model name as arg, or defaults to 14B

@@ -23,7 +23,7 @@
 set -euo pipefail
 
 # -- Configuration --
-GROUP_DIR="/gscratch/stf"       # <-- Replace with your group's gscratch path
+GROUP_DIR="/mmfs1/gscratch/stf/yarasho"
 CONTAINER_DIR="${GROUP_DIR}/containers"
 MODEL_CACHE="${GROUP_DIR}/models"
 

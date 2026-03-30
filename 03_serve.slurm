@@ -8,6 +8,7 @@
 #SBATCH --gpus=1                        # 1 GPU for 14B; use 2 for 32B
 #SBATCH --time=08:00:00
 #SBATCH --output=serve_%j.log
+#SBATCH --chdir=/mmfs1/gscratch/stf/yarasho/llm-for-tpi
 
 # =============================================================================
 # Run the Qwen3 inference server on a Hyak GPU node
@@ -32,13 +33,13 @@
 set -euo pipefail
 
 # -- Configuration --
-GROUP_DIR="/gscratch/stf"        # <-- Replace
+GROUP_DIR="/mmfs1/gscratch/stf/yarasho"
 CONTAINER="${GROUP_DIR}/containers/qwen3.sif"
 MODEL_CACHE="${GROUP_DIR}/models"
 MODEL_ID="${MODEL_ID:-Qwen/Qwen3-14B}"
 MAX_MODEL_LEN="${MAX_MODEL_LEN:-8192}"
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 
 echo "============================================"
 echo "  Qwen3 Inference Server — Hyak"
