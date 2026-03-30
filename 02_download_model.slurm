@@ -19,7 +19,7 @@
 set -euo pipefail
 
 # -- Configuration --
-GROUP_DIR="/mmfs1/gscratch/stf/yarasho"
+GROUP_DIR="/mmfs1/gscratch/stf/"
 CONTAINER="${GROUP_DIR}/containers/qwen3.sif"
 MODEL_CACHE="${GROUP_DIR}/models"
 MODEL_ID="${1:-Qwen/Qwen3-14B}"        # Pass model name as arg, or defaults to 14B
@@ -35,15 +35,15 @@ echo "Download started: $(date)"
 
 apptainer exec \
     --bind "${MODEL_CACHE}:/gscratch/models" \
+    --bind "${MODEL_CACHE}:/gscratch/stf/models" \
     --bind /tmp:/tmp \
+    --env HF_XET_CACHE=/gscratch/models/xet \
     "${CONTAINER}" \
     python3 -c "
 from huggingface_hub import snapshot_download
-import os
 snapshot_download(
     '${MODEL_ID}',
     cache_dir='/gscratch/models',
-    resume_download=True,
 )
 print('Download complete.')
 "
