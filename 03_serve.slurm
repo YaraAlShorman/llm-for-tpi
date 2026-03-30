@@ -63,5 +63,8 @@ apptainer exec \
     --nv \
     --bind "${MODEL_CACHE}:/gscratch/models" \
     --bind "${SCRIPT_DIR}/server.py:/app/server.py" \
+    --env HF_HOME=/gscratch/models/hf_cache \
+    --env MODEL_ID="${MODEL_ID}" \
+    --env MAX_MODEL_LEN="${MAX_MODEL_LEN}" \
     "${CONTAINER}" \
     python3 /app/server.py
