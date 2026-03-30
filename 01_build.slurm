@@ -7,6 +7,7 @@
 #SBATCH --mem=32G
 #SBATCH --time=02:00:00
 #SBATCH --output=build_%j.log
+#SBATCH --chdir=/mmfs1/gscratch/stf/yarasho/llm-for-tpi
 
 # =============================================================================
 # Build the Apptainer container image on a compute node
@@ -32,7 +33,7 @@ mkdir -p "${CONTAINER_DIR}" "${MODEL_CACHE}"
 export APPTAINER_CACHEDIR=/tmp
 export APPTAINER_TMPDIR=/tmp
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 
 echo "=== Building Apptainer container ==="
 echo "Build started: $(date)"
