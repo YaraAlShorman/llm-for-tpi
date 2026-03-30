@@ -19,7 +19,7 @@
 set -euo pipefail
 
 # -- Configuration --
-GROUP_DIR="/mmfs1/gscratch/stf/"
+GROUP_DIR="/mmfs1/gscratch/stf/yarasho"
 CONTAINER="${GROUP_DIR}/containers/qwen3.sif"
 MODEL_CACHE="${GROUP_DIR}/models"
 MODEL_ID="${1:-Qwen/Qwen3-14B}"        # Pass model name as arg, or defaults to 14B
