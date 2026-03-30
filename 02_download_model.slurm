@@ -7,6 +7,8 @@
 #SBATCH --mem=16G
 #SBATCH --time=04:00:00
 #SBATCH --output=download_%j.log
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=yarasho@uw.edu
 #SBATCH --chdir=/mmfs1/gscratch/stf/yarasho/llm-for-tpi
 
 # =============================================================================

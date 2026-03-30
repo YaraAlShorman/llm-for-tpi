@@ -8,6 +8,8 @@
 #SBATCH --gpus=1                        # 1 GPU for 14B; use 2 for 32B
 #SBATCH --time=08:00:00
 #SBATCH --output=serve_%j.log
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=yarasho@uw.edu
 #SBATCH --chdir=/mmfs1/gscratch/stf/yarasho/llm-for-tpi
 
 # =============================================================================
