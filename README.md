@@ -96,6 +96,79 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
+## Test Point Insertion (TPI)
+
+The `tpi/` directory contains two Python scripts for automated test point insertion
+and fault coverage evaluation. These run on your **local machine** and talk to the
+Qwen3 server over the SSH tunnel.
+
+### Setup
+
+```bash
+cd tpi
+pip install -r requirements.txt
+```
+
+Yosys must also be installed locally for synthesis (`brew install yosys` on macOS,
+`apt install yosys` on Ubuntu).
+
+### `tpi_insert.py` — Insert test points into a design
+
+Synthesises a Verilog RTL file with Yosys, then asks Qwen3 to insert control
+and observation test points to maximise fault coverage and minimise pattern count.
+
+```bash
+# Synthesise RTL and insert test points (produces design_synth.v + design_tpi.v)
+python tpi_insert.py design.v
+
+# Specify the top-level module name
+python tpi_insert.py design.v --top mymodule
+
+# Custom output path
+python tpi_insert.py design.v -o design_with_tpi.v
+
+# Skip synthesis (input is already a gate-level netlist)
+python tpi_insert.py design.v --no-synth
+
+# Use a different model server URL
+python tpi_insert.py design.v --url http://localhost:8000/v1
+```
+
+### `evaluate.py` — Measure fault coverage and pattern count
+
+Runs stuck-at fault simulation on a gate-level netlist and reports fault coverage
+and pattern count. Use `--compare` to see the improvement after TPI.
+
+```bash
+# Evaluate a single netlist (500 random patterns by default)
+python evaluate.py netlist.v
+
+# Use more patterns for higher accuracy
+python evaluate.py netlist.v -n 1000
+
+# Compare TPI netlist against the original (shows coverage delta)
+python evaluate.py design_tpi.v --compare design_synth.v
+
+# Load test vectors from a file (one pattern per line, binary values)
+python evaluate.py netlist.v --vectors patterns.txt
+
+# Set random seed for reproducibility
+python evaluate.py netlist.v --seed 0
+```
+
+### Typical workflow
+
+```bash
+# 1. Make sure the SSH tunnel to Hyak is open
+ssh -L 8000:<node>:8000 yarasho@klone.hyak.uw.edu
+
+# 2. Insert test points
+python tpi_insert.py my_design.v --top my_module
+
+# 3. Compare fault coverage before and after
+python evaluate.py my_design_tpi.v --compare my_design_synth.v
+```
+
 ## Interactive Testing
 
 If you want to poke around before running the full server:

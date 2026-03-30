@@ -109,7 +109,7 @@ def insert_test_points(netlist: str, client: OpenAI, model: str) -> str:
         model=model,
         messages=[{"role": "user", "content": _PROMPT.format(netlist=netlist)}],
         temperature=0.1,
-        max_tokens=16384,
+        max_tokens=8192,
     )
     return _strip_fences(resp.choices[0].message.content)
 
