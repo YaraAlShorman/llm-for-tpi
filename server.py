@@ -72,7 +72,7 @@ class ChatRequest(BaseModel):
     messages: list[Message]
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     top_p: float = Field(default=0.9, ge=0.0, le=1.0)
-    max_tokens: int = Field(default=2048, ge=1, le=MAX_MODEL_LEN)
+    max_tokens: int = Field(default=MAX_MODEL_LEN, ge=1, le=MAX_MODEL_LEN)
     stream: bool = False
     enable_thinking: Optional[bool] = None
 
@@ -81,7 +81,7 @@ class CompletionRequest(BaseModel):
     prompt: str
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     top_p: float = Field(default=0.9, ge=0.0, le=1.0)
-    max_tokens: int = Field(default=2048, ge=1, le=MAX_MODEL_LEN)
+    max_tokens: int = Field(default=MAX_MODEL_LEN, ge=1, le=MAX_MODEL_LEN)
     stream: bool = False
 
 # ---------------------------------------------------------------------------

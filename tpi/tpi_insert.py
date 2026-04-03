@@ -394,17 +394,19 @@ def select_test_points(
         model=model,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.1,
-        max_tokens=1024,
     )
     raw = resp.choices[0].message.content.strip()
+    # Strip Qwen3 thinking block
+    raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
+    # Strip markdown fences
     raw = re.sub(r"^```[a-zA-Z]*\s*", "", raw, flags=re.MULTILINE)
-    raw = re.sub(r"```\s*$",           "", raw, flags=re.MULTILINE)
+    raw = re.sub(r"```\s*$",           "", raw, flags=re.MULTILINE).strip()
 
     try:
         data = json.loads(raw)
         cp0s = data["cp0"]
         cp1s = data["cp1"]
-        ops  = data["observation_points"]
+        ops  = data.get("observation_points") or data.get("observation") or []
     except Exception:
         sys.exit(f"Failed to parse LLM JSON response:\n{raw}")
 
