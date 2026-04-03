@@ -341,7 +341,7 @@ fault testing of a synthesised gate-level netlist.
 
 ## Instructions
 - Analyse the netlist above to identify the best test point locations.
-- Choose exactly {n_cp0} nets for CP0, {n_cp1} nets for CP1, and {n_op} nets for OP.
+- {tp_instruction}
 - A net may not appear in more than one category.
 - Prefer internal wire/net names that are hard to control or observe based on
   the circuit topology (deep logic cones, high fanout, outputs of AND/OR chains).
@@ -367,19 +367,27 @@ def select_test_points(
     n_cp: int,
     n_op: int,
     netlist_text: str = "",
+    n_tp: int | None = None,
 ) -> tuple[list[str], list[str], list[str]]:
     """Returns (cp0_nets, cp1_nets, op_nets)."""
-    n_cp0 = n_cp // 2
-    n_cp1 = n_cp - n_cp0
+    if n_tp is not None:
+        tp_instruction = (
+            f"Choose exactly {n_tp} test points in total across CP0, CP1, and OP. "
+            f"Decide the best split between the three categories based on the circuit."
+        )
+    else:
+        n_cp0 = n_cp // 2
+        n_cp1 = n_cp - n_cp0
+        tp_instruction = (
+            f"Choose exactly {n_cp0} nets for CP0, {n_cp1} nets for CP1, and {n_op} nets for OP."
+        )
 
     prompt = _SELECTION_PROMPT.format(
         n_pi=len(pis),
         n_po=len(pos),
         n_nets=len(nets),
         netlist=netlist_text,
-        n_cp0=n_cp0,
-        n_cp1=n_cp1,
-        n_op=n_op,
+        tp_instruction=tp_instruction,
     )
 
     resp = client.chat.completions.create(
@@ -512,11 +520,14 @@ def main() -> None:
                     help="OpenAI-compatible server base URL  [%(default)s]")
     ap.add_argument("--model", default="Qwen/Qwen3-14B",           metavar="ID",
                     help="Model ID served at --url           [%(default)s]")
+    ap.add_argument("--tp", type=int, default=None, metavar="N",
+                    help="Total test points to insert (split evenly between CP and OP)")
     ap.add_argument("--cp", type=int, default=6, metavar="N",
                     help="Number of control points to insert [%(default)s]")
     ap.add_argument("--op", type=int, default=6, metavar="N",
                     help="Number of observation points to insert [%(default)s]")
     args = ap.parse_args()
+
 
     src = Path(args.input)
     if not src.exists():
@@ -542,7 +553,7 @@ def main() -> None:
 
     print(f"[2/3] Asking {args.model} to select test points …")
     client = OpenAI(base_url=args.url, api_key="unused")
-    cp0s, cp1s, ops = select_test_points(pis, pos, nets, client, args.model, args.cp, args.op, netlist_text)
+    cp0s, cp1s, ops = select_test_points(pis, pos, nets, client, args.model, args.cp, args.op, netlist_text, args.tp)
     print(f"      CP0 (force-to-0)  : {cp0s}")
     print(f"      CP1 (force-to-1)  : {cp1s}")
     print(f"      Observation points: {ops}")

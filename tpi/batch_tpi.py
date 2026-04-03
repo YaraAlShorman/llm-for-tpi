@@ -43,6 +43,7 @@ def run_one(
     n_patterns: int,
     seed: int,
     out_dir: Path,
+    n_tp: int | None = None,
 ) -> dict:
     """
     Full pipeline for one benchmark.
@@ -74,7 +75,7 @@ def run_one(
             return result
 
         cp0s, cp1s, ops = select_test_points(
-            pis, pos, nets, client, model, n_cp, n_op, netlist_text
+            pis, pos, nets, client, model, n_cp, n_op, netlist_text, n_tp
         )
         result["cp0"] = cp0s
         result["cp1"] = cp1s
@@ -191,6 +192,8 @@ def main() -> None:
                     help="OpenAI-compatible server URL   [%(default)s]")
     ap.add_argument("--model",    default="Qwen/Qwen3-14B",           metavar="ID",
                     help="Model ID                       [%(default)s]")
+    ap.add_argument("--tp",       type=int, default=None, metavar="N",
+                    help="Total test points per design (split evenly between CP and OP)")
     ap.add_argument("--cp",       type=int, default=6,  metavar="N",
                     help="Control points per design      [%(default)s]")
     ap.add_argument("--op",       type=int, default=6,  metavar="N",
@@ -227,7 +230,7 @@ def main() -> None:
     for i, src in enumerate(sources, 1):
         print(f"[{i:2d}/{len(sources)}] {src.stem} … ", end="", flush=True)
         r = run_one(src, client, args.model, args.cp, args.op,
-                    args.patterns, args.seed, out_dir)
+                    args.patterns, args.seed, out_dir, args.tp)
         status = r.get("status", "ok")
         if status == "ok":
             print(
