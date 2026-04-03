@@ -34,8 +34,8 @@ echo "Cache directory: ${MODEL_CACHE}"
 echo "Download started: $(date)"
 
 # Load HuggingFace token from .env
-if [[ -f "${SCRIPT_DIR}/.env" ]]; then
-    export $(grep -v '^#' "${SCRIPT_DIR}/.env" | xargs)
+if [[ -f "${PWD}/.env" ]]; then
+    export $(grep -v '^#' "${PWD}/.env" | xargs)
 fi
 
 
