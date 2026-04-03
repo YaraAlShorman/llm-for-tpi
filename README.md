@@ -169,7 +169,65 @@ python tpi_insert.py my_design.v --top my_module
 python evaluate.py my_design_tpi.v --compare my_design_synth.v
 ```
 
-## Interactive Testing
+---
+
+## Running on Jetstream2 (g3.xl / A100)
+
+The `jetstream/` directory contains scripts for running the same server on a
+Jetstream2 GPU instance (Ubuntu 22.04, A100 40 GB) without SLURM or Apptainer.
+
+### A100 model fit
+
+| Model | Precision | VRAM | Fits on 40 GB A100? |
+|-------|-----------|------|----------------------|
+| Qwen3-14B | bf16 | ~28 GB | Yes |
+| Qwen3-32B | bf16 | ~64 GB | No |
+| Qwen3-32B | Int4 | ~18 GB | Yes (add `bitsandbytes`) |
+
+### Step-by-step
+
+**1. Clone the repo on your Jetstream instance**
+
+```bash
+ssh ubuntu@<your-instance-ip>
+git clone https://github.com/YaraAlShorman/llm-for-tpi.git
+cd llm-for-tpi
+```
+
+**2. One-time setup** (installs PyTorch, transformers, etc.)
+
+```bash
+bash jetstream/00_setup.sh
+```
+
+**3. Download the model**
+
+```bash
+bash jetstream/01_download_model.sh
+# or for a different model:
+MODEL_ID=Qwen/Qwen3-32B bash jetstream/01_download_model.sh
+```
+
+**4. Start the server**
+
+```bash
+bash jetstream/02_serve.sh
+# Custom port or context length:
+PORT=8080 MAX_MODEL_LEN=16384 bash jetstream/02_serve.sh
+```
+
+**5. Connect from your laptop**
+
+```bash
+ssh -L 8000:<your-instance-ip>:8000 ubuntu@<your-instance-ip>
+curl http://localhost:8000/health
+```
+
+The `tpi/` scripts work identically — just make sure the tunnel is open before running `tpi_insert.py`.
+
+---
+
+## Interactive Testing (Hyak)
 
 If you want to poke around before running the full server:
 

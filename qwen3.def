@@ -7,8 +7,8 @@ From: nvidia/cuda:12.4.1-runtime-ubuntu22.04
 
 %environment
     export PYTHONUNBUFFERED=1
-    export HF_HOME=/gscratch/stf/models
-    export TRANSFORMERS_CACHE=/gscratch/stf/models
+    export HF_HOME=/gpfs/projects/rhlab/yarasho/models/hf_cache
+    export TRANSFORMERS_CACHE=/gpfs/projects/rhlab/yarasho/models/hf_cache
 
 %post
     apt-get update && apt-get install -y --no-install-recommends \
@@ -28,6 +28,7 @@ From: nvidia/cuda:12.4.1-runtime-ubuntu22.04
     pip install --no-cache-dir \
         transformers>=4.51.0 \
         accelerate>=1.2.0 \
+        bitsandbytes>=0.43.0 \
         sentencepiece \
         protobuf \
         huggingface_hub \

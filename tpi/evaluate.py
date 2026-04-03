@@ -89,8 +89,14 @@ def _parse_decl(keyword: str, src: str) -> list[str]:
         input [7:0] data;   (only the identifier, not the width)
     """
     results: list[str] = []
+    # Pattern breakdown:
+    #   \b{keyword}\b\s+   — keyword then mandatory whitespace
+    #   (?:reg\s+)?        — optional 'reg' qualifier (e.g. "output reg y")
+    #   (?:\[\d+:\d+\]\s+)?— optional bus width (e.g. "[31:0] ")
+    #   ([\w,\s]+?)        — lazy capture of one or more signal names
+    #   \s*;               — trailing semicolon
     for m in re.finditer(
-        rf"\b{keyword}\b(?:\s+\w+)?(?:\s*\[\d+:\d+\])?\s*([\w\s,]+?)\s*;", src
+        rf"\b{keyword}\b\s+(?:reg\s+)?(?:\[\d+:\d+\]\s+)?([\w,\s]+?)\s*;", src
     ):
         for sig in re.split(r"\s*,\s*", m.group(1)):
             sig = sig.strip()
@@ -159,13 +165,25 @@ def _topo_sort(gates: list[Gate], pi_set: set[str]) -> list[Gate]:
     return order
 
 
+def _parse_regs(src: str) -> list[str]:
+    """Extract reg names (flip-flop state elements) — treated as depth-0 sources."""
+    results: list[str] = []
+    for m in re.finditer(r"\breg\b(?:\s*\[\d+:\d+\])?\s+(\w+)\s*;", src):
+        results.append(m.group(1))
+    for m in re.finditer(r"\breg\b\s+(\\[\w\[\]]+)\s*;", src):
+        results.append(re.sub(r"\[.*", "", m.group(1).lstrip("\\")))
+    return list(dict.fromkeys(results))
+
+
 def parse_netlist(src: str) -> Circuit:
     src    = _strip_comments(src)
     mod_m  = re.search(r"module\s+(\w+)", src)
     name   = mod_m.group(1) if mod_m else "unknown"
     pis    = _parse_decl("input",  src)
     pos    = _parse_decl("output", src)
-    pi_set = set(pis)
+    regs   = _parse_regs(src)
+    # Regs are DFF Q outputs — treat as additional depth-0 sources alongside PIs
+    pi_set = set(pis) | set(regs)
     gates: list[Gate] = []
     idx = 0
 
@@ -195,7 +213,7 @@ def parse_netlist(src: str) -> Circuit:
             gates.append(g)
             idx += 1
 
-    nets: set[str] = set(pis) | set(pos)
+    nets: set[str] = set(pis) | set(pos) | set(regs)
     for g in gates:
         nets.add(g.output)
         nets.update(g.inputs)
@@ -311,10 +329,13 @@ def fault_simulate(c: Circuit, patterns: list[dict[str, int]]) -> tuple[int, int
     ]
     total = len(faults)
 
-    # Pre-compute good-circuit output values for every pattern
+    # Pre-compute good-circuit output values for every pattern.
+    # Only include POs that are actually driven (registered outputs may not be
+    # computed by the combinational simulator for sequential circuits).
     good_states: list[dict[str, int]] = [simulate_good(c, p) for p in patterns]
+    observable_pos = [k for k in c.pos if k in good_states[0]] if good_states else c.pos
     good_outputs: list[dict[str, int]] = [
-        {k: gs[k] for k in c.pos} for gs in good_states
+        {k: gs[k] for k in observable_pos} for gs in good_states
     ]
 
     undetected: set[int] = set(range(total))   # indices into faults[]
@@ -366,9 +387,9 @@ def fault_simulate(c: Circuit, patterns: list[dict[str, int]]) -> tuple[int, int
                         bv[g.output] |=  (1 << bit)
 
             # Check which faults are detected: faulty output ≠ good output
-            # Build a "mismatch" mask: bit i set if any PO differs
+            # Build a "mismatch" mask: bit i set if any observable PO differs
             mismatch = 0
-            for po in c.pos:
+            for po in observable_pos:
                 good_bv = mask if good_out.get(po, 0) else 0
                 mismatch |= bv.get(po, 0) ^ good_bv
             mismatch &= mask

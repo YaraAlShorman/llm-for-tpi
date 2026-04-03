@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 # ---------------------------------------------------------------------------
 MODEL_ID = os.environ.get("MODEL_ID", "Qwen/Qwen3-14B")
 MAX_MODEL_LEN = int(os.environ.get("MAX_MODEL_LEN", "8192"))
+QUANTIZATION = os.environ.get("QUANTIZATION", "").lower()  # "int4", "int8", or ""
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 DTYPE = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
 
@@ -29,18 +30,32 @@ DTYPE = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
 # Load model
 # ---------------------------------------------------------------------------
 print(f"Loading model: {MODEL_ID}")
-print(f"Device: {DEVICE} | Dtype: {DTYPE}")
+print(f"Device: {DEVICE} | Dtype: {DTYPE} | Quantization: {QUANTIZATION or 'none'}")
 
 tokenizer = AutoTokenizer.from_pretrained(
     MODEL_ID,
     trust_remote_code=True,
 )
 
+_quant_kwargs = {}
+if QUANTIZATION == "int4":
+    from transformers import BitsAndBytesConfig
+    _quant_kwargs["quantization_config"] = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_compute_dtype=DTYPE,
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_quant_type="nf4",
+    )
+elif QUANTIZATION == "int8":
+    from transformers import BitsAndBytesConfig
+    _quant_kwargs["quantization_config"] = BitsAndBytesConfig(load_in_8bit=True)
+
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_ID,
-    torch_dtype=DTYPE,
+    dtype=DTYPE,
     device_map="auto",
     trust_remote_code=True,
+    **_quant_kwargs,
 )
 model.eval()
 print("Model loaded successfully.")
@@ -235,4 +250,5 @@ async def completions(req: CompletionRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", "8000"))
+    uvicorn.run(app, host="0.0.0.0", port=port)

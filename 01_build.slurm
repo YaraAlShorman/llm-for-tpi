@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=qwen3-build
-#SBATCH --partition=ckpt-all
-#SBATCH --account=stf        # <-- Replace with your account (run `hyakalloc`)
+#SBATCH --partition=gpu-h200
+#SBATCH --account=rhlab        # <-- Replace with your account
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
@@ -9,23 +9,16 @@
 #SBATCH --output=build_%j.log
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=yarasho@uw.edu
-#SBATCH --chdir=/mmfs1/gscratch/stf/yarasho/llm-for-tpi
+#SBATCH --chdir=/gpfs/projects/rhlab/yarasho/llm-for-tpi
 
 # =============================================================================
 # Build the Apptainer container image on a compute node
-# =============================================================================
-# The home directory has a 10GB limit, so we build on /tmp (node-local SSD)
-# and copy the final .sif to /gscratch.
-#
-# BEFORE RUNNING:
-#   1. Replace stf and stf with your actual Hyak account/group.
-#   2. Ensure qwen3.def and server.py are in the same directory as this script.
 # =============================================================================
 
 set -euo pipefail
 
 # -- Configuration --
-GROUP_DIR="/mmfs1/gscratch/stf/yarasho"
+GROUP_DIR="/gpfs/projects/rhlab/yarasho"
 CONTAINER_DIR="${GROUP_DIR}/containers"
 MODEL_CACHE="${GROUP_DIR}/models"
 
@@ -45,7 +38,7 @@ apptainer build --fakeroot \
     /tmp/qwen3.sif \
     "${SCRIPT_DIR}/qwen3.def"
 
-echo "=== Build complete, copying to gscratch ==="
+echo "=== Build complete, copying to project dir ==="
 cp /tmp/qwen3.sif "${CONTAINER_DIR}/qwen3.sif"
 
 echo "Container saved to: ${CONTAINER_DIR}/qwen3.sif"
