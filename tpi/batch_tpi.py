@@ -74,7 +74,7 @@ def run_one(
             return result
 
         cp0s, cp1s, ops = select_test_points(
-            pis, pos, nets, client, model, n_cp, n_op
+            pis, pos, nets, client, model, n_cp, n_op, netlist_text
         )
         result["cp0"] = cp0s
         result["cp1"] = cp1s

@@ -1,14 +1,6 @@
-# Running Qwen3 on UW Hyak (Klone)
+# LLM for Test Point Insertion (TPI)
 
-Guide for running Qwen3-14B on Hyak using your `stf` account and `gpu-l40s` partition.
-
-## Your GPU Resources
-
-| Partition | VRAM/card | Free GPUs | Good for |
-|-----------|-----------|-----------|----------|
-| `gpu-l40s` | 48 GB | 4 | **Best for Qwen3-14B** |
-| `gpu-l40` | 48 GB | 4 | Also works well |
-| `gpu-2080ti` | 11 GB | 6 | Too small for 14B |
+Runs Qwen3-14B on the Tillicum cluster (H200 GPUs) to perform automated Test Point Insertion on synthesised gate-level Verilog netlists.
 
 ## Files
 
@@ -17,238 +9,173 @@ Guide for running Qwen3-14B on Hyak using your `stf` account and `gpu-l40s` part
 | `qwen3.def` | Apptainer container recipe |
 | `server.py` | FastAPI inference server (OpenAI-compatible) |
 | `01_build.slurm` | Build the container image |
-| `02_download_model.slurm` | Download model weights to gscratch |
+| `02_download_model.slurm` | Download model weights |
 | `03_serve.slurm` | Run the inference server |
-| `04_interactive.sh` | Interactive GPU shell for testing |
+| `tpi/tpi_insert.py` | Insert test points into a single design |
+| `tpi/batch_tpi.py` | Batch TPI across multiple designs |
+| `tpi/evaluate.py` | Measure fault coverage before/after TPI |
 
-## Step-by-Step
+## Setup (one-time)
 
-### 1. Upload files to Hyak
+All files live under `/gpfs/projects/rhlab/yarasho/`. Clone the repo there before running anything:
 
 ```bash
-scp qwen3.def server.py *.slurm *.sh yarasho@klone.hyak.uw.edu:~/qwen3/
+cd /gpfs/projects/rhlab/yarasho
+git clone <repo-url> llm-for-tpi
+cd llm-for-tpi
 ```
 
-### 2. Build the container (~15-30 min)
+### 1. Build the container
 
 ```bash
-ssh yarasho@klone.hyak.uw.edu
-cd ~/qwen3
 sbatch 01_build.slurm
 ```
 
-Monitor progress with `squeue -u yarasho`. When done, the container will be at `/gscratch/stf/containers/qwen3.sif`.
+Monitor with `squeue -u yarasho`. When done, the container is at:
+`/gpfs/projects/rhlab/yarasho/containers/qwen3.sif`
 
-### 3. Download the model (~30-60 min)
+### 2. Download the model
 
 ```bash
 sbatch 02_download_model.slurm
 ```
 
-This downloads ~28 GB of model weights to `/gscratch/stf/models/`.
+Downloads Qwen3-14B (~28 GB) to `/gpfs/projects/rhlab/yarasho/models/`.
+To download a different variant pass the model ID as an argument:
 
-### 4. Start the server
+```bash
+sbatch 02_download_model.slurm Qwen/Qwen3-7B
+```
+
+### 3. Start the inference server
 
 ```bash
 sbatch 03_serve.slurm
 ```
 
-Check the log to find which node you landed on:
+The server runs with **INT4 quantization** by default (~7 GB VRAM), leaving ~134 GB free on the H200 for KV cache — enough to fit full netlists in context without truncation.
+
+Check the log to find your node:
 
 ```bash
-cat serve_<jobid>.log
-# Look for the line: "Node  : g30XX"
+tail -f serve_<jobid>.log
+# Look for: "Node  : <nodename>"
 ```
 
-### 5. Connect from your laptop
+#### Configuration options
+
+Override defaults via environment variables:
+
+```bash
+# Use bf16 instead of INT4 (higher quality, uses ~28 GB)
+QUANTIZATION= sbatch 03_serve.slurm
+
+# Larger context window (default: 32768)
+MAX_MODEL_LEN=65536 sbatch 03_serve.slurm
+
+# Run the 7B model instead
+MODEL_ID=Qwen/Qwen3-7B sbatch 03_serve.slurm
+```
+
+### 4. Connect from your laptop
 
 Set up an SSH tunnel through the login node to the compute node:
 
 ```bash
-ssh -L 8000:g30XX:8000 yarasho@klone.hyak.uw.edu
+ssh -L 8000:<nodename>:8000 <user>@<tillicum-login-node>
 ```
 
-Replace `g30XX` with the actual node name from the log. Then query the API:
+Test the connection:
 
 ```bash
-# Health check
 curl http://localhost:8000/health
-
-# Chat
-curl http://localhost:8000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [{"role": "user", "content": "Hello from Hyak!"}],
-    "max_tokens": 256
-  }'
 ```
 
-Or use the OpenAI Python SDK:
+---
 
-```python
-from openai import OpenAI
+## TPI Usage
 
-client = OpenAI(base_url="http://localhost:8000/v1", api_key="unused")
-response = client.chat.completions.create(
-    model="Qwen/Qwen3-14B",
-    messages=[{"role": "user", "content": "Hello!"}],
-)
-print(response.choices[0].message.content)
-```
+The `tpi/` scripts run locally and talk to the server over the SSH tunnel.
+Yosys must be installed locally (`brew install yosys` / `apt install yosys`).
 
-## Test Point Insertion (TPI)
+### `tpi_insert.py` — single design
 
-The `tpi/` directory contains two Python scripts for automated test point insertion
-and fault coverage evaluation. These run on your **local machine** and talk to the
-Qwen3 server over the SSH tunnel.
-
-### Setup
+Synthesises a Verilog RTL file with Yosys, sends the full gate-level netlist to
+Qwen3, and applies the selected test points.
 
 ```bash
 cd tpi
-pip install -r requirements.txt
-```
 
-Yosys must also be installed locally for synthesis (`brew install yosys` on macOS,
-`apt install yosys` on Ubuntu).
-
-### `tpi_insert.py` — Insert test points into a design
-
-Synthesises a Verilog RTL file with Yosys, then asks Qwen3 to insert control
-and observation test points to maximise fault coverage and minimise pattern count.
-
-```bash
-# Synthesise RTL and insert test points (produces design_synth.v + design_tpi.v)
+# Basic usage
 python tpi_insert.py design.v
 
-# Specify the top-level module name
+# Specify top-level module
 python tpi_insert.py design.v --top mymodule
 
 # Custom output path
-python tpi_insert.py design.v -o design_with_tpi.v
+python tpi_insert.py design.v -o design_tpi.v
 
-# Skip synthesis (input is already a gate-level netlist)
+# Input is already gate-level (skip synthesis)
 python tpi_insert.py design.v --no-synth
 
-# Use a different model server URL
+# Control number of test points inserted
+python tpi_insert.py design.v --cp 6 --op 6
+
+# Point at a different server
 python tpi_insert.py design.v --url http://localhost:8000/v1
 ```
 
-### `evaluate.py` — Measure fault coverage and pattern count
-
-Runs stuck-at fault simulation on a gate-level netlist and reports fault coverage
-and pattern count. Use `--compare` to see the improvement after TPI.
+### `batch_tpi.py` — multiple designs
 
 ```bash
-# Evaluate a single netlist (500 random patterns by default)
+python batch_tpi.py benchmarks/*.v --cp 6 --op 6
+```
+
+### `evaluate.py` — measure fault coverage
+
+```bash
+# Evaluate a single netlist
 python evaluate.py netlist.v
 
-# Use more patterns for higher accuracy
-python evaluate.py netlist.v -n 1000
-
-# Compare TPI netlist against the original (shows coverage delta)
+# Compare before and after TPI
 python evaluate.py design_tpi.v --compare design_synth.v
 
-# Load test vectors from a file (one pattern per line, binary values)
-python evaluate.py netlist.v --vectors patterns.txt
-
-# Set random seed for reproducibility
-python evaluate.py netlist.v --seed 0
+# More patterns for higher accuracy
+python evaluate.py netlist.v -n 1000
 ```
 
 ### Typical workflow
 
 ```bash
-# 1. Make sure the SSH tunnel to Hyak is open
-ssh -L 8000:<node>:8000 yarasho@klone.hyak.uw.edu
+# 1. Open SSH tunnel to the compute node
+ssh -L 8000:<nodename>:8000 <user>@<tillicum-login-node>
 
 # 2. Insert test points
 python tpi_insert.py my_design.v --top my_module
 
-# 3. Compare fault coverage before and after
+# 3. Evaluate improvement
 python evaluate.py my_design_tpi.v --compare my_design_synth.v
 ```
 
 ---
 
-## Running on Jetstream2 (g3.xl / A100)
+## GPU / VRAM reference (H200 — 141 GB)
 
-The `jetstream/` directory contains scripts for running the same server on a
-Jetstream2 GPU instance (Ubuntu 22.04, A100 40 GB) without SLURM or Apptainer.
-
-### A100 model fit
-
-| Model | Precision | VRAM | Fits on 40 GB A100? |
-|-------|-----------|------|----------------------|
-| Qwen3-14B | bf16 | ~28 GB | Yes |
-| Qwen3-32B | bf16 | ~64 GB | No |
-| Qwen3-32B | Int4 | ~18 GB | Yes (add `bitsandbytes`) |
-
-### Step-by-step
-
-**1. Clone the repo on your Jetstream instance**
-
-```bash
-ssh ubuntu@<your-instance-ip>
-git clone https://github.com/YaraAlShorman/llm-for-tpi.git
-cd llm-for-tpi
-```
-
-**2. One-time setup** (installs PyTorch, transformers, etc.)
-
-```bash
-bash jetstream/00_setup.sh
-```
-
-**3. Download the model**
-
-```bash
-bash jetstream/01_download_model.sh
-# or for a different model:
-MODEL_ID=Qwen/Qwen3-32B bash jetstream/01_download_model.sh
-```
-
-**4. Start the server**
-
-```bash
-bash jetstream/02_serve.sh
-# Custom port or context length:
-PORT=8080 MAX_MODEL_LEN=16384 bash jetstream/02_serve.sh
-```
-
-**5. Connect from your laptop**
-
-```bash
-ssh -L 8000:<your-instance-ip>:8000 ubuntu@<your-instance-ip>
-curl http://localhost:8000/health
-```
-
-The `tpi/` scripts work identically — just make sure the tunnel is open before running `tpi_insert.py`.
+| Model | Precision | Weights | VRAM free for KV cache |
+|-------|-----------|---------|------------------------|
+| Qwen3-14B | INT4 | ~7 GB | ~134 GB |
+| Qwen3-14B | bf16 | ~28 GB | ~113 GB |
+| Qwen3-32B | INT4 | ~18 GB | ~123 GB |
+| Qwen3-32B | bf16 | ~64 GB | ~77 GB |
 
 ---
 
-## Interactive Testing (Hyak)
-
-If you want to poke around before running the full server:
-
-```bash
-bash 04_interactive.sh gpu-l40s 1
-```
-
-This drops you into a shell inside the container on a GPU node. You can verify the GPU works:
-
-```bash
-python3 -c "import torch; print(torch.cuda.get_device_name(0))"
-```
-
 ## Troubleshooting
 
-**"Disk quota exceeded" during build** — The build scripts already set `APPTAINER_CACHEDIR=/tmp` to avoid the 10 GB home directory limit. If building interactively, run `export APPTAINER_CACHEDIR=/tmp` first.
+**Out of GPU memory** — Unlikely on H200 with INT4, but if it happens reduce `MAX_MODEL_LEN` or switch to a smaller model (`Qwen/Qwen3-7B`).
 
-**Out of GPU memory** — Reduce `MAX_MODEL_LEN` (e.g., set to 4096), or switch to a quantized model like `Qwen/Qwen3-14B-GPTQ-Int4`.
+**Model download interrupted** — Re-run `sbatch 02_download_model.slurm`. HuggingFace Hub resumes partial downloads automatically.
 
-**Job pending (PD state)** — Try `ckpt-all` instead: `sbatch --partition=ckpt-all 03_serve.slurm`. Checkpoint jobs use idle GPUs across the cluster but can be preempted.
+**LLM returns invalid JSON** — The script will print the raw response and exit. Try re-running; setting `temperature=0` in the request can also help.
 
-**Can't connect to the server** — Double-check the node name in `squeue -u yarasho` matches your SSH tunnel target. Also verify the server actually started by checking the log file.
-
-**Model download interrupted** — Just re-run `sbatch 02_download_model.slurm`. It uses `resume_download=True` and will pick up where it left off.
+**Can't connect to server** — Verify the node name in the log matches your SSH tunnel. Check the server is still running with `squeue -u yarasho`.

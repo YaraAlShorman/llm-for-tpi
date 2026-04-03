@@ -33,12 +33,16 @@ echo "=== Downloading model: ${MODEL_ID} ==="
 echo "Cache directory: ${MODEL_CACHE}"
 echo "Download started: $(date)"
 
-# If you need a HuggingFace token for gated models, uncomment:
-# export HF_TOKEN="hf_xxxxx"
+# Load HuggingFace token from .env
+if [[ -f "${SCRIPT_DIR}/.env" ]]; then
+    export $(grep -v '^#' "${SCRIPT_DIR}/.env" | xargs)
+fi
+
 
 apptainer exec \
     --bind "${MODEL_CACHE}:/gpfs/projects/rhlab/yarasho/models" \
     --bind /tmp:/tmp \
+    --env HF_TOKEN="${HF_TOKEN:-}" \
     --env HF_XET_CACHE=/gpfs/projects/rhlab/yarasho/models/xet \
     "${CONTAINER}" \
     python3 -c "

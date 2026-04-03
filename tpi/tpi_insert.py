@@ -329,28 +329,22 @@ fault testing of a synthesised gate-level netlist.
   primary output. Best candidates: high-fanout nodes or nodes deep in the cone
   of logic far from any primary output (high SCOAP CO).
 
-## Circuit summary
+## Circuit statistics
 - Primary inputs  : {n_pi}
 - Primary outputs : {n_po}
 - Internal nets   : {n_nets}
 
-## CP0 candidates  (hard to set to 0 — driven by OR/NOR or deep path)
-(name, gate_type, depth, fanout)
-{cp0_candidates}
-
-## CP1 candidates  (hard to set to 1 — driven by AND/NAND or deep path)
-(name, gate_type, depth, fanout)
-{cp1_candidates}
-
-## OP candidates   (hard to observe — highest fanout, deepest depth)
-(name, gate_type, depth, fanout)
-{op_candidates}
+## Full gate-level netlist
+```verilog
+{netlist}
+```
 
 ## Instructions
+- Analyse the netlist above to identify the best test point locations.
 - Choose exactly {n_cp0} nets for CP0, {n_cp1} nets for CP1, and {n_op} nets for OP.
 - A net may not appear in more than one category.
-- Prefer nets that appear in BOTH the control AND observation candidate lists
-  (i.e. high fanout AND deep) — these give the most improvement.
+- Prefer internal wire/net names that are hard to control or observe based on
+  the circuit topology (deep logic cones, high fanout, outputs of AND/OR chains).
 - Do NOT select primary inputs or primary outputs.
 
 ## Response format
@@ -363,14 +357,6 @@ Respond with valid JSON only — no explanation, no markdown fences:
 """
 
 
-def _format_candidates(items: list[tuple[str, _NetInfo]], n: int) -> str:
-    rows = []
-    for name, info in items[:n]:
-        rows.append(
-            f"  {name}, {info.driven_by}, depth={info.depth}, fanout={info.fanout}"
-        )
-    return "\n".join(rows) if rows else "  (none)"
-
 
 def select_test_points(
     pis: list[str],
@@ -380,31 +366,17 @@ def select_test_points(
     model: str,
     n_cp: int,
     n_op: int,
+    netlist_text: str = "",
 ) -> tuple[list[str], list[str], list[str]]:
     """Returns (cp0_nets, cp1_nets, op_nets)."""
-    # Split CP candidates by difficulty type
-    cp0_cands = sorted(
-        [(n, i) for n, i in nets.items() if i.cc0_hard],
-        key=lambda x: (-x[1].depth, -x[1].fanout),
-    )
-    cp1_cands = sorted(
-        [(n, i) for n, i in nets.items() if i.cc1_hard],
-        key=lambda x: (-x[1].depth, -x[1].fanout),
-    )
-    op_cands = sorted(nets.items(), key=lambda x: (-x[1].fanout, -x[1].depth))
-
-    # Split requested CP count roughly evenly between CP0 and CP1
     n_cp0 = n_cp // 2
     n_cp1 = n_cp - n_cp0
 
-    # Send more candidates when context allows — top 80 per category
     prompt = _SELECTION_PROMPT.format(
         n_pi=len(pis),
         n_po=len(pos),
         n_nets=len(nets),
-        cp0_candidates=_format_candidates(cp0_cands, 80),
-        cp1_candidates=_format_candidates(cp1_cands, 80),
-        op_candidates=_format_candidates(op_cands, 80),
+        netlist=netlist_text,
         n_cp0=n_cp0,
         n_cp1=n_cp1,
         n_op=n_op,
@@ -570,7 +542,7 @@ def main() -> None:
 
     print(f"[2/3] Asking {args.model} to select test points …")
     client = OpenAI(base_url=args.url, api_key="unused")
-    cp0s, cp1s, ops = select_test_points(pis, pos, nets, client, args.model, args.cp, args.op)
+    cp0s, cp1s, ops = select_test_points(pis, pos, nets, client, args.model, args.cp, args.op, netlist_text)
     print(f"      CP0 (force-to-0)  : {cp0s}")
     print(f"      CP1 (force-to-1)  : {cp1s}")
     print(f"      Observation points: {ops}")
