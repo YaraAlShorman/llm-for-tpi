@@ -4,6 +4,7 @@
 #SBATCH --account=rhlab        # <-- Replace with your account
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
+#SBATCH --gpus=1
 #SBATCH --mem=32G
 #SBATCH --time=02:00:00
 #SBATCH --output=build_%j.log

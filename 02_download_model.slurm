@@ -4,6 +4,7 @@
 #SBATCH --account=rhlab        # <-- Replace with your account
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
+#SBATCH --gpus=1
 #SBATCH --mem=16G
 #SBATCH --time=04:00:00
 #SBATCH --output=download_%j.log
