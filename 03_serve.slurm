@@ -7,7 +7,7 @@
 #SBATCH --mem=64G
 #SBATCH --gpus=1                        # 1 H200 is sufficient for any Qwen3 variant
 #SBATCH --time=08:00:00
-#SBATCH --output=serve_%j.log
+#SBATCH --output=/logs/serve_logs/serve_%j.log
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=yarasho@uw.edu
 #SBATCH --chdir=/gpfs/projects/rhlab/yarasho/llm-for-tpi

@@ -7,7 +7,7 @@
 #SBATCH --gpus=1
 #SBATCH --mem=16G
 #SBATCH --time=04:00:00
-#SBATCH --output=download_%j.log
+#SBATCH --output=/logs/download_logs/download_%j.log
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=yarasho@uw.edu
 #SBATCH --chdir=/gpfs/projects/rhlab/yarasho/llm-for-tpi
@@ -25,7 +25,7 @@ set -euo pipefail
 GROUP_DIR="/gpfs/projects/rhlab/yarasho"
 CONTAINER="${GROUP_DIR}/containers/qwen3.sif"
 MODEL_CACHE="${GROUP_DIR}/models"
-MODEL_ID="${1:-Qwen/Qwen3-14B}"        # Pass model name as arg, or defaults to 14B
+MODEL_ID="${1:-Qwen/Qwen3-32B}"        # Pass model name as arg, or defaults to 32B
 
 mkdir -p "${MODEL_CACHE}"
 
