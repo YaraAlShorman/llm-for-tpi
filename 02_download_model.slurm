@@ -7,7 +7,7 @@
 #SBATCH --gpus=1
 #SBATCH --mem=16G
 #SBATCH --time=04:00:00
-#SBATCH --output=/logs/download_logs/download_%j.log
+#SBATCH --output=/gpfs/projects/rhlab/yarasho/llm-for-tpi/logs/download_logs/download_%j.log
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=yarasho@uw.edu
 #SBATCH --chdir=/gpfs/projects/rhlab/yarasho/llm-for-tpi
